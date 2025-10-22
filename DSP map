@@ -1,0 +1,197 @@
+if (`window -ex DispPrev`)
+    {
+    deleteUI DispPrev;
+    }
+
+window  -w 80 -h 200 -t "Displacement preview Test" -fw    DispPrev;
+frameLayout -label "Displacement" DisplacementLayout;
+columnLayout -adjustableColumn true; 
+separator -st "none" -h 5;
+
+button -label "Prev_Disp_ON"  -command "turnOnSubd";  
+separator -st "none" -h 5;
+
+button -label "Prev_Disp_OFF" -command "turnOffSubd"; 
+separator -st "none" -h 10;
+
+
+
+text  -h 10 -l "Shader Prev Name ";
+textField  SHname;
+separator -st "none" -h 10;
+button -label "CreateDispShader" -command "UDIMCreate"; 
+setParent ..;
+
+if (`dockControl -ex  DispPrevDoc`) 
+{
+deleteUI DispPrevDoc;
+}
+
+
+
+dockControl     
+    -l "DispPrev "  
+    -area "right"
+    -content "DispPrev"	
+    -allowedArea "left"
+    -allowedArea "right"
+    -retain 0	
+    DispPrevDoc;
+        
+
+
+
+
+
+global proc turnOnSubd(){
+    string $SelSetAtt[];
+    $SelSetAtt=`ls-sl`;
+        
+    for ($i=0;$i<=`size $SelSetAtt`;$i++){ 
+        setAttr ($SelSetAtt[$i] + ".displaySmoothMesh") 2;
+        setAttr ($SelSetAtt[$i] + ".useGlobalSmoothDrawType") 0;
+        setAttr ($SelSetAtt[$i] + ".showDisplacements") 1;
+        setAttr ($SelSetAtt[$i] + ".smoothDrawType") 3; 
+        setAttr ($SelSetAtt[$i] + ".smoothLevel") 2;
+               
+        }
+    }
+
+global proc turnOffSubd(){
+    string $SelSetAtt[];
+    $SelSetAtt=`ls-sl`;
+    for ($i=0;$i<`size $SelSetAtt`;$i++)
+    {
+        setAttr ($SelSetAtt[$i] + ".showDisplacements") 0;
+       
+    }}
+
+
+
+
+
+global proc UDIMCreate()
+    {
+    string $selfObj[]=`ls -sl`;            
+    int $UDIM=1001;
+    int $i,$m,$UV;
+    $ShaderName= `textField -q -text SHname`;  
+    $m =100; 
+    if  (`objExists ($ShaderName+"_SG")`==0){
+    
+    
+        shadingNode -as blinn -n ($ShaderName+"_SH");
+        sets -renderable true -noSurfaceShader true -empty -name ($ShaderName + "_SG");
+        shadingNode -asShader displacementShader -n ($ShaderName + "_Disp");
+        shadingNode  -au plusMinusAverage -n ($ShaderName +"_Add_disp");
+        connectAttr -f ($ShaderName+"_SH.outColor") ($ShaderName+"_SG.surfaceShader");
+        connectAttr -f ($ShaderName + "_Disp.displacement") ($ShaderName+"_SG.displacementShader");
+        connectAttr -f ($ShaderName +"_Add_disp.output3Dx") ($ShaderName + "_Disp.displacement");
+        string $DispPath[]=`fileDialog2  -fm 1 -ff  "ImageFile(*.exr *.tif)"`;
+        string $fileType=endString($DispPath[0], 4);
+        int $pathSize= `size $DispPath[0]`;
+        string $partialPath=startString($DispPath[0],$pathSize-8);
+        
+        for ($i=0, $UV=0;$i<$m; $i++ ,$UDIM++, $UV++){
+             
+              if ($UV>=10){
+              $UV=0;}
+             
+             string $DispPathUvTile=  ($partialPath + $UDIM + $fileType);  
+             string $path = fromNativePath ($DispPathUvTile);              
+             int $check = `file -q -exists   $path`;
+                            if ($check == 1){
+            
+
+                                 //
+                                    
+                                shadingNode -asTexture -isColorManaged file -n ($ShaderName + "_" +$UDIM); 
+                                setAttr -type "string" ($ShaderName + "_"+ $UDIM + ".fileTextureName") $DispPathUvTile ;        
+                                shadingNode -asUtility place2dTexture;
+                                rename ($ShaderName + "_UV"+ $UDIM );
+                                        connectAttr -f ($ShaderName + "_UV" + $UDIM+".coverage")($ShaderName + "_"+ $UDIM + ".coverage") ;
+                                        connectAttr -f ($ShaderName + "_UV"+ $UDIM+".translateFrame")($ShaderName + "_"+$UDIM + ".translateFrame") ;
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".rotateFrame")($ShaderName +  "_"+$UDIM + ".rotateFrame");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".mirrorU")($ShaderName +  "_"+$UDIM + ".mirrorU");
+                                        connectAttr -f ($ShaderName + "_UV"+ $UDIM+".mirrorV")($ShaderName +  "_"+$UDIM + ".mirrorV") ;
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".stagger") ($ShaderName +  "_"+$UDIM + ".stagger");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".wrapU")($ShaderName +  "_"+$UDIM + ".wrapU");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".wrapV")($ShaderName +  "_"+$UDIM + ".wrapV");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".repeatUV")($ShaderName +  "_"+$UDIM + ".repeatUV");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".offset") ($ShaderName +  "_"+$UDIM + ".offset");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".rotateUV") ($ShaderName +  "_"+$UDIM + ".rotateUV");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".noiseUV") ($ShaderName +  "_"+$UDIM + ".noiseUV");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".vertexUvOne") ($ShaderName +  "_"+$UDIM + ".vertexUvOne");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".vertexUvTwo") ($ShaderName +  "_"+$UDIM + ".vertexUvTwo");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".vertexUvThree") ($ShaderName +  "_"+$UDIM + ".vertexUvThree");
+                                        connectAttr -f  ($ShaderName + "_UV"+ $UDIM+".vertexCameraOne") ($ShaderName +  "_"+$UDIM + ".vertexCameraOne");
+                                        connectAttr ($ShaderName + "_UV"+ $UDIM+".outUV") ($ShaderName +  "_" +$UDIM + ".uv");
+                                        setAttr ($ShaderName + "_UV"+ $UDIM+".wrapV") 0;   
+                                        setAttr ($ShaderName + "_UV"+ $UDIM+".wrapU") 0;                      
+                                        connectAttr  ($ShaderName + "_UV"+ $UDIM+".outUvFilterSize") ($ShaderName +  "_"+$UDIM + ".uvFilterSize") ;
+                                        setAttr ($ShaderName +  "_"+$UDIM + ".defaultColor") -type double3 0 0 0 ;
+                                        setAttr ($ShaderName +  "_"+$UDIM + ".ignoreColorSpaceFileRules") 1;
+                                        setAttr ($ShaderName +  "_"+$UDIM + ".colorSpace") -type "string" "Raw"; 
+                                        connectAttr -f ($ShaderName + "_" +$UDIM+".outColorR") ($ShaderName +"_Add_disp"+".input3D["+ $i +"].input3Dx");        
+                                        setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameU") $UV; 
+                                        
+                                  
+                                        
+                                
+                                if  (1001<=$UDIM && $UDIM<1011){
+                                  
+                                  setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV") 0; 
+                                 }    
+                                        
+                                if  (1011<=$UDIM && $UDIM<1021){
+                                setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV") 1; 
+                                 
+                                  
+                                           }
+                                 if  (1021<=$UDIM && $UDIM<1031){
+                                
+                                setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV")  2;    
+                                           }                          
+                                  if  (1031<=$UDIM && $UDIM<1041){
+                                
+                                setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV") 3; }
+                                      
+                                  if  (1041<=$UDIM && $UDIM<1051){
+                                 
+                                    
+                                 setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV")  4;      
+                                           } 
+                                  if  (1051<=$UDIM && $UDIM<1061){
+                                
+                                 setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV")  5;  
+                                           }  
+                                  if  (1061<=$UDIM && $UDIM<1071){
+                                
+                                 
+                                setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV")  6; 
+                                           }        
+                                 if  (1071<=$UDIM && $UDIM<1081){
+                                
+                                   
+                                 setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV")  7; 
+                                           }                                                                                      
+                                 if  (1081<=$UDIM && $UDIM<1091){
+                                 
+                                 setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV")  8;   }           
+                                 
+                                  if  (1091<=$UDIM && $UDIM<=1100){
+                                 
+                                 setAttr ($ShaderName + "_UV"+ $UDIM+".translateFrameV")  9;   }                                           
+                                }}
+            
+           select $selfObj; 
+           if (`size $selfObj` >0){           
+           sets -e -forceElement ($ShaderName + "_SG");} 
+            
+            }
+            else {
+            confirmDialog -title "Error" -message "Shader name Exists"     -button "OK" ; 
+            }
+             
+            
+}
