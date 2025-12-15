@@ -1,0 +1,128 @@
+import maya.cmds as cmds
+# control name prefix - this will change for diffrent rigs make sure it matches the name, you can activate the shapes and have a look at the name cotrol- e.g of jatayu when opening the jaw: "character01jatayu01face01:face_main_ctrl.JawOpen"
+C_NAME = 'character01jatayu01face01:'     
+CTRL_SHORT = 'face_main_ctrl' 
+CTRL_NODE = C_NAME + CTRL_SHORT
+
+HUD_PREFIX = 'HUDkcm_activeShapes'
+
+# Columns Number
+COLUMN_SECTIONS = [4, 3,2]   # The more shapes we want to see the more Colums we should add here. e.g more [4, 3,2,1,0]  
+NUM_COLUMNS = len(COLUMN_SECTIONS)
+LINES_PER_COLUMN = 25      # this is how maney shapes we we in each colums, the resultion of the playblash of viewport will play a big role here, lower resolution it would crop the shapes, keeping it 25 when playblashast it at 1080p should diplay 25 shapes
+
+THRESHOLD = 1e-4
+_MAX_BLOCKS_PER_SECTION = 60
+
+
+def _to_comma_decimal(value):
+    s = '{0:.3f}'.format(value)
+    s = s.rstrip('0').rstrip('.')
+    if s == '-0':
+        s = '0'
+    return s.replace('.', ',')
+
+
+def _is_numeric_attr(node, attr):
+    try:
+        atype = cmds.getAttr(node + '.' + attr, type=True)
+        return atype in ('double', 'float', 'long', 'short', 'byte',
+                         'doubleAngle', 'doubleLinear')
+    except:
+        return False
+
+
+def _active_pairs():
+    if not cmds.objExists(CTRL_NODE):
+        return [('Missing node', CTRL_NODE)]
+    attrs = cmds.listAttr(CTRL_NODE, k=True) or []
+    pairs = []
+    for a in attrs:
+        if not _is_numeric_attr(CTRL_NODE, a):
+            continue
+        try:
+            v = cmds.getAttr(CTRL_NODE + '.' + a)
+            val = float(v)
+        except:
+            continue
+        if abs(val) > THRESHOLD:
+            pairs.append((a, val))
+    pairs.sort(key=lambda p: p[0].lower())
+    return pairs
+
+
+def _line_text(global_index):
+    """Return text for a given overall index (across both columns)."""
+    pairs = _active_pairs()
+    if pairs and pairs[0][0] == 'Missing node':
+        return 'Missing node: {0}'.format(pairs[0][1])
+    if not pairs:
+        return 'Neutral' if global_index == 0 else ''
+    if global_index >= len(pairs):
+        return ''
+    name, val = pairs[global_index]
+    return '{0} : {1}'.format(name, _to_comma_decimal(val))
+
+
+def _remove_if_exists(name):
+    if cmds.headsUpDisplay(name, exists=True):
+        cmds.headsUpDisplay(name, remove=True)
+
+
+def _cleanup_all_known():
+    total_lines = NUM_COLUMNS * LINES_PER_COLUMN
+    for i in range(total_lines):
+        _remove_if_exists('{0}_line{1}'.format(HUD_PREFIX, i))
+
+
+def _try_place_group(section, start_block, column_index):
+    created = []
+    for local_i in range(LINES_PER_COLUMN):
+        global_index = column_index * LINES_PER_COLUMN + local_i
+        name = '{0}_line{1}'.format(HUD_PREFIX, global_index)
+        _remove_if_exists(name)
+        try:
+            cmds.headsUpDisplay(
+                name,
+                section=section,
+                block=start_block + local_i,
+                blockSize='small',
+                label='',
+                labelFontSize='small',
+                dataFontSize='small',
+                command=(lambda gi=global_index: _line_text(gi)),
+                attachToRefresh=True,
+                allowOverlap=False
+            )
+            created.append(name)
+        except RuntimeError:
+            for n in created:
+                _remove_if_exists(n)
+            return False
+    return True
+
+
+def remove_hud():
+    _cleanup_all_known()
+
+
+def create_hud():
+    remove_hud()
+    for col_index, sec in enumerate(COLUMN_SECTIONS):
+        placed = False
+        for base in range(0, _MAX_BLOCKS_PER_SECTION - LINES_PER_COLUMN):
+            if _try_place_group(sec, base, col_index):
+                placed = True
+                break
+        if not placed:
+            cmds.warning('Active Shapes HUD: No free space for column {0}.'.format(col_index))
+
+    return True
+
+
+def replace_hud():
+    remove_hud()
+    return create_hud()
+
+
+replace_hud()
